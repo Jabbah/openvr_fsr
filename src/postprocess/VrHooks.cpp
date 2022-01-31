@@ -45,9 +45,11 @@ namespace {
 			*pnWidth *= Config::Instance().renderScale;
 			*pnHeight *= Config::Instance().renderScale;
 		}
+		Log() << "Recommended render target size: " << *pnWidth << "x" << *pnHeight << "\n";
 	}
 
 	vr::EVRCompositorError IVRCompositor_Submit(vr::IVRCompositor *self, vr::EVREye eEye, const vr::Texture_t *pTexture, const vr::VRTextureBounds_t *pBounds, vr::EVRSubmitFlags nSubmitFlags) {
+		//Log() << "Submit\n";
 		void *origHandle = pTexture->handle;
 
 		postProcessor.Apply(eEye, pTexture, pBounds, nSubmitFlags);
@@ -60,11 +62,24 @@ namespace {
 		return error;
 	}
 
+	vr::EVRCompositorError IVRCompositor_WaitGetPoses(vr::IVRCompositor* self, VR_ARRAY_COUNT(unRenderPoseArrayCount) vr::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRenderPoseArrayCount,
+		VR_ARRAY_COUNT(unGamePoseArrayCount) vr::TrackedDevicePose_t* pGamePoseArray, uint32_t unGamePoseArrayCount) 
+	{
+		Log() << "WaitGetPoses";
+
+		vr::EVRCompositorError error = CallOriginal(IVRCompositor_WaitGetPoses)(self, pRenderPoseArray, unRenderPoseArrayCount, pGamePoseArray, unGamePoseArrayCount);
+		if (error != vr::VRCompositorError_None) {
+			Log() << "Error when getting poses: " << error << std::endl;
+		}
+
+		return error;
+	}
+
 	vr::EVRCompositorError IVRCompositor_Submit_008(vr::IVRCompositor *self, vr::EVREye eEye, unsigned int eTextureType, void *pTexture, const vr::VRTextureBounds_t *pBounds, vr::EVRSubmitFlags nSubmitFlags) {
 		if (eTextureType == 0) {
 			// texture type is DirectX
 			vr::Texture_t texture;
-			texture.eType = vr::TextureType_DirectX;
+			//texture.eType = vr::TextureType_DirectX;
 			texture.eColorSpace = vr::ColorSpace_Auto;
 			texture.handle = pTexture;
 			postProcessor.Apply(eEye, &texture, pBounds, nSubmitFlags);
@@ -77,7 +92,7 @@ namespace {
 		if (eTextureType == 0) {
 			// texture type is DirectX
 			vr::Texture_t texture;
-			texture.eType = vr::TextureType_DirectX;
+			//texture.eType = vr::TextureType_DirectX;
 			texture.eColorSpace = vr::ColorSpace_Auto;
 			texture.handle = pTexture;
 			postProcessor.Apply(eEye, &texture, pBounds, vr::Submit_Default);
@@ -183,9 +198,10 @@ void HookVRInterface(const char *version, void *instance) {
 	if (!ivrCompositorHooked && std::sscanf(version, "IVRCompositor_%u", &compositor_version))
 	{
 		if (compositor_version >= 9) {
-		Log() << "Injecting Submit into " << version << std::endl;
+			Log() << "Injecting Submit into " << version << std::endl;
 			uint32_t methodPos = compositor_version >= 12 ? 5 : 4;
 			InstallVirtualFunctionHook(instance, methodPos, IVRCompositor_Submit);
+			//InstallVirtualFunctionHook(instance, 2, IVRCompositor_WaitGetPoses);
 			ivrCompositorHooked = true;
 		}
 		else if (compositor_version == 8) {
